@@ -155,6 +155,81 @@ error:
 	return COMMAND_ERROR;
 }
 
+/* write_reliability [-c] /dev/mmcX */
+static int do_mmc_write_reliability_set(int argc, char *argv[])
+{
+	const char *devpath;
+	struct mci *mci;
+	u8 *ext_csd;
+	int set_completed = 0;
+	int opt;
+	int ret;
+
+	while ((opt = getopt(argc, argv, "c")) > 0) {
+		switch (opt) {
+		case 'c':
+			set_completed = 1;
+			break;
+		}
+	}
+
+	if (argc - optind != 1) {
+		printf("Usage: mmc write_reliability [-c] /dev/mmcX\n");
+		return COMMAND_ERROR_USAGE;
+	}
+
+	devpath = argv[optind];
+
+	mci = mci_get_device_by_devpath(devpath);
+	if (!mci) {
+		printf("Failure to open %s as mci device\n", devpath);
+		return COMMAND_ERROR;
+	}
+
+	ext_csd = mci_get_ext_csd(mci);
+	if (IS_ERR(ext_csd))
+		return COMMAND_ERROR;
+
+	if (ext_csd[EXT_CSD_PARTITION_SETTING_COMPLETED]) {
+		printf("Partitioning already finalized\n");
+		goto error;
+	}
+
+	if (!(ext_csd[EXT_CSD_WR_REL_PARAM] & EXT_CSD_EN_REL_WR)) {
+		printf("Cannot set write reliability, WR_REL_SET is read-only\n");
+		goto error;
+	}
+
+	/*
+	 * host has one opportunity to write all of the bits
+	 * separate writes to individual bits are not permitted
+	 * so set all bits here
+	 */
+	if (ext_csd[EXT_CSD_WR_REL_SET] & 0x1f != 0x1f) {
+		ret = mci_switch(mci, EXT_CSD_WR_REL_SET, 0x1f);
+		if (ret) {
+			printf("Failure to write to EXT_CSD_WR_REL_SET\n");
+			goto error;
+		}
+		printf("Done setting EXT_CSD_WR_REL_SET to 0x1F\n");
+	}
+
+	free(ext_csd);
+
+	if (set_completed) {
+		ret = mmc_partitioning_complete(mci);
+		if (ret)
+			return COMMAND_ERROR;
+		printf("Now power cycle the device to let it reconfigure itself.\n");
+	}
+
+	return COMMAND_SUCCESS;
+
+error:
+	free(ext_csd);
+	return COMMAND_ERROR;
+}
+
 static struct {
 	const char *cmd;
 	int (*func)(int argc, char *argv[]);
@@ -197,11 +272,14 @@ BAREBOX_CMD_HELP_TEXT("The subcommand enh_area creates an enhanced area of")
 BAREBOX_CMD_HELP_TEXT("maximal size.")
 BAREBOX_CMD_HELP_TEXT("Note, with -c this is an irreversible action.")
 BAREBOX_CMD_HELP_OPT("-c", "complete partitioning")
+BAREBOX_CMD_HELP_OPT("write_reliability", "enable the write reliability")
+BAREBOX_CMD_HELP_TEXT("Subcommand write_reliability enable write reliability")
 BAREBOX_CMD_HELP_END
 
 BAREBOX_CMD_START(mmc)
 	.cmd = do_mmc,
 	BAREBOX_CMD_OPTS("enh_area [-c] /dev/mmcX")
+	BAREBOX_CMD_OPTS("write_reliability [-c] /dev/mmcX")
 	BAREBOX_CMD_GROUP(CMD_GRP_HWMANIP)
 	BAREBOX_CMD_HELP(cmd_mmc_help)
 BAREBOX_CMD_END
