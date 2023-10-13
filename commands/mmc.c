@@ -57,10 +57,18 @@ static int mmc_enh_area_setmax(struct mci *mci, u8 *ext_csd)
 static int mmc_partitioning_complete(struct mci *mci)
 {
 	int ret;
+	int response = 0;
 
 	ret = mci_switch(mci, EXT_CSD_PARTITION_SETTING_COMPLETED, 1);
 	if (ret)
 		printf("Failure to write to EXT_CSD_PARTITION_SETTING_COMPLETED\n");
+
+	ret = mci_send_status(mci, &response);
+
+	if (response & R1_SWITCH_ERROR) {
+		printf("device assert SWITCH_ERROR\n");
+		return 1;
+	}
 
 	return ret;
 }

@@ -144,7 +144,7 @@ static int mci_set_blocklen(struct mci *mci, unsigned len)
 
 static void *sector_buf;
 
-static int mci_send_status(struct mci *mci, unsigned int *status)
+int mci_send_status(struct mci *mci, unsigned int *status)
 {
 	struct mci_host *host = mci->host;
 	struct mci_cmd cmd;
