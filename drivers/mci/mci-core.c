@@ -495,14 +495,26 @@ int mci_send_ext_csd(struct mci *mci, char *ext_csd)
 int mci_switch(struct mci *mci, unsigned index, unsigned value)
 {
 	struct mci_cmd cmd;
-
+	int response = 0;
+	int ret = 0;
 	mci_setup_cmd(&cmd, MMC_CMD_SWITCH,
 		(MMC_SWITCH_MODE_WRITE_BYTE << 24) |
 		(index << 16) |
 		(value << 8),
 		 MMC_RSP_R1b);
 
-	return mci_send_cmd(mci, &cmd, NULL);
+	ret = mci_send_cmd(mci, &cmd, NULL);
+	if (ret)
+		return ret;
+
+	ret = mci_send_status(mci, &response);
+	if (ret)
+		return ret;
+
+	if (response & R1_SWITCH_ERROR)
+		return response;
+
+	return ret;
 }
 
 static blkcnt_t mci_calc_blk_cnt(blkcnt_t cap, unsigned shift)
