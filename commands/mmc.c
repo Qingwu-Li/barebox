@@ -208,6 +208,61 @@ error:
 	return COMMAND_ERROR;
 }
 
+/* set_partition_complete /dev/mmcX */
+static int do_mmc_set_partition_complete(int argc, char *argv[])
+{
+	const char *devpath;
+	struct mci *mci;
+	int ret;
+
+	if (argc - optind != 1) {
+		printf("Usage: mmc set_partition_complete /dev/mmcX\n");
+		return COMMAND_ERROR_USAGE;
+	}
+
+	devpath = argv[optind];
+
+	mci = mci_get_device_by_devpath(devpath);
+	if (!mci) {
+		printf("Failure to open %s as mci device\n", devpath);
+		return COMMAND_ERROR_USAGE;
+	}
+
+	return mmc_partitioning_complete(mci);
+}
+
+/* get_partition_complete /dev/mmcX */
+static int do_mmc_get_partition_complete(int argc, char *argv[])
+{
+	const char *devpath;
+	struct mci *mci;
+	u8 *ext_csd;
+	int ret;
+
+	if (argc - optind != 1) {
+		printf("Usage: mmc set_partition_complete /dev/mmcX\n");
+		return COMMAND_ERROR_USAGE;
+	}
+
+	devpath = argv[optind];
+
+	mci = mci_get_device_by_devpath(devpath);
+	if (!mci) {
+		printf("Failure to open %s as mci device\n", devpath);
+		return COMMAND_ERROR_USAGE;
+	}
+
+	ext_csd = mci_get_ext_csd(mci);
+	if (IS_ERR(ext_csd))
+		return -1;
+
+	ret = ext_csd[EXT_CSD_PARTITION_SETTING_COMPLETED];
+
+	free(ext_csd);
+
+	return ret;
+}
+
 static struct {
 	const char *cmd;
 	int (*func)(int argc, char *argv[]);
@@ -219,6 +274,14 @@ static struct {
 	{
 		.cmd = "write_reliability",
 		.func = do_mmc_write_reliability_set,
+	},
+	{
+		.cmd = "set_partition_complete",
+		.func = do_mmc_set_partition_complete,
+	},
+	{
+		.cmd = "get_partition_complete",
+		.func = do_mmc_get_partition_complete,
 	}
 };
 
@@ -255,12 +318,16 @@ BAREBOX_CMD_HELP_TEXT("maximal size.")
 BAREBOX_CMD_HELP_TEXT("Note, with -c this is an irreversible action.")
 BAREBOX_CMD_HELP_OPT("-c", "complete partitioning")
 BAREBOX_CMD_HELP_TEXT("The subcommand write_reliability enable write reliability")
+BAREBOX_CMD_HELP_TEXT("The subcommand set_partition_complete set PARTITION_SETTING_COMPLETED")
+BAREBOX_CMD_HELP_TEXT("The subcommand get_partition_complete get PARTITION_SETTING_COMPLETED")
 BAREBOX_CMD_HELP_END
 
 BAREBOX_CMD_START(mmc)
 	.cmd = do_mmc,
 	BAREBOX_CMD_OPTS("enh_area [-c] /dev/mmcX")
 	BAREBOX_CMD_OPTS("write_reliability /dev/mmcX")
+	BAREBOX_CMD_OPTS("set_partition_complete /dev/mmcX")
+	BAREBOX_CMD_OPTS("get_partition_complete /dev/mmcX")
 	BAREBOX_CMD_GROUP(CMD_GRP_HWMANIP)
 	BAREBOX_CMD_HELP(cmd_mmc_help)
 BAREBOX_CMD_END
